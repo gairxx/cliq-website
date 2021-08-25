@@ -1,12 +1,9 @@
-import { ReactElement } from 'react';
-import { GetServerSideProps, GetServerSidePropsContext } from 'next';
+import { ReactElement, useState, useLayoutEffect } from 'react';
+import { GetStaticProps, GetStaticPropsContext } from 'next';
+import { useRouter } from 'next/router';
 import classNames from 'classnames';
 
-import {
-  fetchBlogEntries,
-  fetchBlogEntriesByTag,
-  generateRoute,
-} from '@/services/cms';
+import { fetchBlogEntries, generateRoute } from '@/services/cms';
 import { IPost } from '@/types/cms';
 
 import { Layout } from '@/components/ui';
@@ -15,33 +12,42 @@ import { PostList } from '@/components/posts';
 import METADATA from '@/constants/metadata';
 
 interface Props {
-  tag?: string;
   posts: IPost[];
 }
 
-export const getServerSideProps: GetServerSideProps = async (
-  context: GetServerSidePropsContext
+export const getStaticProps: GetStaticProps = async (
+  context: GetStaticPropsContext
 ) => {
-  const tag = context.query.tag && String(context.query.tag);
-  const { entries: posts, total: totalPosts } = tag
-    ? await fetchBlogEntriesByTag(tag)
-    : await fetchBlogEntries();
-
-  const props: Props = {
-    posts,
-  };
-  if (tag) {
-    props.tag = tag;
-  }
+  const { entries: posts, total: totalPosts } = await fetchBlogEntries();
   return {
-    props,
+    props: { posts },
+    revalidate: 3600, // refresh hourly
   };
 };
 
 export default function Blog(props: Props): ReactElement {
-  const { posts, tag } = props;
+  const router = useRouter();
+  const [tag, setTag] = useState('');
+
+  useLayoutEffect(() => {
+    if (router.query.tag) {
+      if (typeof router.query.tag === 'string') {
+        setTag(router.query.tag);
+      } else {
+        setTag(router.query.tag.join(','));
+      }
+    } else {
+      setTag('');
+    }
+  }, [router.query.tag]);
+
+  let { posts } = props;
+  if (tag.length > 0) {
+    posts = posts.filter((post) => {
+      return post.tags.join(',').includes(tag);
+    });
+  }
   const [featuredPost, ...otherPosts] = posts;
-  const featuredClasses = classNames('mb-5', 'md:flex');
   return (
     <Layout
       title={tag ? `${tag} Archives` : 'Blog'}
@@ -76,7 +82,7 @@ export default function Blog(props: Props): ReactElement {
             <PostCard
               route={generateRoute(featuredPost.slug)}
               featured={true}
-              classes={classNames(featuredClasses)}
+              classes={classNames('mb-5', 'md:flex')}
               key={featuredPost.id}
               {...featuredPost}
             />

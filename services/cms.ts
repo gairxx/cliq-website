@@ -27,7 +27,7 @@ const client: ContentfulClientApi = createClient({
   accessToken: process.env.CONTENTFUL_ACCESS_TOKEN!,
 });
 
-async function getTagList() {
+async function fetchTagList(): Promise<ITagList> {
   const _tags = await client.getTags();
   const tags: ITagList = {};
   _tags.items.forEach((tag) => {
@@ -87,7 +87,7 @@ export async function fetchEntryBySlug(
     content_type: entryType, // only fetch specific type
     'fields.slug': slug,
   });
-  const taglist = await getTagList();
+  const taglist = await fetchTagList();
 
   if (_entries?.items?.length > 0) {
     let entry;
@@ -168,7 +168,7 @@ async function generateEntries(
   if (entries && entries.items && entries.items.length > 0) {
     switch (entryType) {
       case 'post':
-        const taglist = await getTagList();
+        const taglist = await fetchTagList();
         _entries = entries.items.map((entry) => convertPost(entry, taglist));
         break;
       case 'faq':

@@ -1,4 +1,9 @@
-import { createClient, ContentfulClientApi, EntryCollection } from 'contentful';
+import {
+  createClient,
+  ContentfulClientApi,
+  EntryCollection,
+  Tag,
+} from 'contentful';
 import { Document, Block, Inline } from '@contentful/rich-text-types';
 import isLive from '@/utils/environment';
 import { format, parseISO } from 'date-fns';
@@ -13,6 +18,7 @@ import {
   IFetchBlogEntriesReturn,
   IFetchFAQItemsReturn,
   IFetchPagesReturn,
+  ITagList,
 } from '@/types/cms';
 import { fetchContent } from '@/services/embed';
 
@@ -20,6 +26,15 @@ const client: ContentfulClientApi = createClient({
   space: process.env.CONTENTFUL_SPACE_ID!,
   accessToken: process.env.CONTENTFUL_ACCESS_TOKEN!,
 });
+
+async function getTagList() {
+  const _tags = await client.getTags();
+  const tags: ITagList = {};
+  _tags.items.forEach((tag) => {
+    tags[tag.sys.id] = tag.name;
+  });
+  return tags;
+}
 
 function loadOptions(options: any) {
   if (isLive()) options['fields.live'] = true;
@@ -37,7 +52,7 @@ export async function fetchBlogEntries(
     })
   );
 
-  const results = generateEntries(_entries, 'post');
+  const results = await generateEntries(_entries, 'post');
   return {
     entries: results.entries as Array<IPost>,
     total: results.total,
@@ -57,7 +72,7 @@ export async function fetchBlogEntriesByTag(
     })
   );
 
-  const results = generateEntries(_entries, 'post');
+  const results = await generateEntries(_entries, 'post');
   return {
     entries: results.entries as Array<IPost>,
     total: results.total,
@@ -72,12 +87,13 @@ export async function fetchEntryBySlug(
     content_type: entryType, // only fetch specific type
     'fields.slug': slug,
   });
+  const taglist = await getTagList();
 
   if (_entries?.items?.length > 0) {
     let entry;
     switch (entryType) {
       case 'post':
-        entry = convertPost(_entries.items[0]);
+        entry = convertPost(_entries.items[0], taglist);
         break;
       case 'page':
         entry = convertPage(_entries.items[0]);
@@ -91,7 +107,7 @@ export async function fetchEntryBySlug(
   return Promise.reject(new Error(`Failed to fetch ${entryType} for ${slug}`));
 }
 
-function convertPost(rawData: any): IPost {
+function convertPost(rawData: any, taglist: ITagList): IPost {
   const rawPost = rawData.fields;
   const rawFeatureImage = rawPost?.featureImage
     ? rawPost?.featureImage.fields
@@ -106,7 +122,7 @@ function convertPost(rawData: any): IPost {
     publishedDateISO: rawPost.date,
     publishedDate: format(parseISO(rawPost.date), 'MMMM dd, yyyy'),
     slug: rawPost.slug,
-    tags: rawPost?.tags, //?.map(t => t?.fields?.label) ?? [],
+    tags: convertTags(rawData.metadata.tags, taglist),
     title: rawPost.title,
     featureImage: convertImage(rawFeatureImage),
     fullHeader: rawPost.fullHeader ?? null,
@@ -137,15 +153,23 @@ function convertAuthor(rawAuthor: any): IAuthor {
   };
 }
 
-function generateEntries(
+function convertTags(rawTags: any, taglist: ITagList): string[] {
+  const tags = rawTags.map((tag: Tag) => {
+    return taglist[tag.sys.id];
+  });
+  return tags;
+}
+
+async function generateEntries(
   entries: EntryCollection<unknown>,
   entryType: 'post' | 'faq' | 'page'
-): IFetchEntriesReturn {
+): Promise<IFetchEntriesReturn> {
   let _entries: any = [];
   if (entries && entries.items && entries.items.length > 0) {
     switch (entryType) {
       case 'post':
-        _entries = entries.items.map((entry) => convertPost(entry));
+        const taglist = await getTagList();
+        _entries = entries.items.map((entry) => convertPost(entry, taglist));
         break;
       case 'faq':
         _entries = entries.items.map((entry) => convertFAQ(entry));
@@ -205,7 +229,7 @@ export async function fetchFAQItems(): Promise<IFetchFAQItemsReturn> {
     order: 'fields.id',
   });
 
-  const results = generateEntries(_entries, 'faq');
+  const results = await generateEntries(_entries, 'faq');
   return { entries: results.entries as Array<IFAQItem>, total: results.total };
 }
 
@@ -230,7 +254,7 @@ export async function fetchPages(quantity = 100): Promise<IFetchPagesReturn> {
     })
   );
 
-  const results = generateEntries(_entries, 'page');
+  const results = await generateEntries(_entries, 'page');
   return {
     entries: results.entries as Array<IPage>,
     total: results.total,

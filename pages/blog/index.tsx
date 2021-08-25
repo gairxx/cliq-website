@@ -1,4 +1,4 @@
-import { ReactElement, useState, useLayoutEffect } from 'react';
+import { ReactElement, useState, useEffect } from 'react';
 import { GetStaticProps, GetStaticPropsContext } from 'next';
 import { useRouter } from 'next/router';
 import classNames from 'classnames';
@@ -29,7 +29,7 @@ export default function Blog(props: Props): ReactElement {
   const router = useRouter();
   const [tag, setTag] = useState('');
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     if (router.query.tag) {
       if (typeof router.query.tag === 'string') {
         setTag(router.query.tag);
@@ -88,7 +88,7 @@ export default function Blog(props: Props): ReactElement {
             />
           </div>
         )}
-        <PostList posts={tag ? posts : otherPosts} />
+        <PostList posts={tag ? posts : otherPosts} showHeading={!tag} />
       </section>
     </Layout>
   );

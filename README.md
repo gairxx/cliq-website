@@ -3,8 +3,6 @@
 
 > Send Messages, Not Metadata.
 
-<br>
-
 ## Getting Started
 
 This project is built with [Contentful](https://www.contentful.com), [Next.js](https://nextjs.org/) , [Tailwind CSS](https://tailwindcss.com/) & [Typescript](https://www.typescriptlang.org/).
